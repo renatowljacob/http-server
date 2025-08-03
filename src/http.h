@@ -34,6 +34,8 @@ typedef enum {
  */
 char *get_content_type(char ext[4]);
 
+void get_method(methods method);
+
 /**
  * @brief Get status code description
  * @param code HTTP status code

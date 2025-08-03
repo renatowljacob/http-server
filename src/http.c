@@ -46,6 +46,22 @@ char *get_content_type(char ext[4])
     }
 }
 
+// TODO: Decide what to do with this here, seems out of place
+void get_method(methods method)
+{
+    switch (method)
+    {
+        case CONNECT: return;
+        case DELETE: return;
+        case GET: return;
+        case OPTIONS: return;
+        case PUT: return;
+        case HEAD: return;
+        case POST: return;
+        case TRACE: return;
+    }
+}
+
 int32_t handle_request(int32_t sfd, char *request)
 {
     int32_t return_code = 0;
@@ -140,6 +156,15 @@ void send_response(int32_t sfd)
     char response_buf[MAX_MESSAGE_BYTES];
     int32_t response_buflen = 0;
 
+    // TODO: Handle special statuses
+    // switch (header.status_code)
+    // {
+    //     case 204:
+    //     case 304:
+    //         header->content_type = "";
+    //         break;
+    // }
+
     if (state.status_code >= 200 && state.status_code <= 299)
     {
         response_buflen = snprintf(
@@ -162,6 +187,8 @@ void send_response(int32_t sfd)
         );
     }
 
+    // TODO: Find a better way to handle this. Hardcoding the message is
+    // kinda cringe
     if (write(sfd, response_buf, (size_t)response_buflen) == -1)
     {
         perror(__func__);

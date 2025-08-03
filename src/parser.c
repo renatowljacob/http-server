@@ -51,6 +51,16 @@ methods parse_method(char *request)
     return -1;
 }
 
+// TODO: This function destroys the rest of the request once it's done. Make it
+// so that it only parses the request target, advances the pointer and leave
+// the rest of the request intact
+
+// TODO: origin-form
+
+// TODO: absolute-form (absolute-uri)
+
+// TODO: asterisk-form (options)
+
 char *parse_request_target(char *request)
 {
     char *start = request;
