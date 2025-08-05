@@ -3,6 +3,9 @@
 
 #define DEFAULT_FILE "index.html"
 
+#define HTTP_SCHEME "http://"
+#define HTTPS_SCHEME "https://"
+
 #define MAX_METHOD_LENGTH 7
 #define METHODS_NUMBER 8
 
@@ -25,7 +28,13 @@ typedef enum {
  *
  * Parse filepath from a request-target only in origin-form
  */
+char *parse_request(char *request);
+
 char *parse_request_target(char *request);
+
+char *parse_request_target_origin_form(char *request);
+
+char *parse_request_target_absolute_form(char *request);
 
 /**
  * @brief Get method from request.

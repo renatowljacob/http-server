@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/sendfile.h>
 #include <sys/stat.h>
@@ -11,7 +12,6 @@
 
 #include "http.h"
 #include "main.h"
-#include "parser.h"
 
 extern State state;
 
@@ -46,27 +46,11 @@ char *get_content_type(char ext[4])
     }
 }
 
-// TODO: Decide what to do with this here, seems out of place
-void get_method(methods method)
-{
-    switch (method)
-    {
-        case CONNECT: return;
-        case DELETE: return;
-        case GET: return;
-        case OPTIONS: return;
-        case PUT: return;
-        case HEAD: return;
-        case POST: return;
-        case TRACE: return;
-    }
-}
-
 int32_t handle_request(int32_t sfd, char *request)
 {
     int32_t return_code = 0;
 
-    const char *file = parse_request_target(request);
+    char *file = parse_request(request);
     if (file == NULL)
     {
         fprintf(stderr, "Malformed header.\n");
@@ -147,6 +131,11 @@ int32_t handle_request(int32_t sfd, char *request)
 
 cleanup:
     close(fd);
+
+    if (file != NULL)
+    {
+        free(file);
+    }
 
     return return_code;
 }

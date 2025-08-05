@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -17,6 +18,8 @@ char *METHODS[] = {
     "TRACE"
 };
 
+// TODO: Come up with better error handling (everything returns NULL)
+
 methods parse_method(char *request)
 {
     bool is_equal;
@@ -28,10 +31,10 @@ methods parse_method(char *request)
         end = request;
         method = METHODS[i];
 
-        for (
-            int32_t j = 0;
-            j < MAX_METHOD_LENGTH && *end != ' ';
-            j++, end++, method++
+        // NOTE: Think about the overflows!!!
+        for (;
+            *method != '\0' && *end != ' ';
+            end++, method++
         )
         {
             if (*end != *method)
@@ -51,75 +54,134 @@ methods parse_method(char *request)
     return -1;
 }
 
-// TODO: This function destroys the rest of the request once it's done. Make it
-// so that it only parses the request target, advances the pointer and leave
-// the rest of the request intact
-
-// TODO: origin-form
-
-// TODO: absolute-form (absolute-uri)
-
-// TODO: asterisk-form (options)
-
 char *parse_request_target(char *request)
 {
-    char *start = request;
-    char *end;
-    bool has_dot = false;
-
-    // Get the start of file path
-    while (*start != ' ')
+    // Absolute URIs must start with a scheme, hence check for 'h' in that
+    // scenario
+    switch (*request)
     {
-        if (!start)
+        case '*': return malloc(sizeof("*"));
+        case '/': return parse_request_target_origin_form(request);
+        case 'h': return parse_request_target_absolute_form(request);
+        default: return NULL;
+    }
+}
+
+char *parse_request_target_origin_form(char *request)
+{
+    char *buf;
+    size_t buf_size = 0;
+
+    // Get the end of file path
+    while (*request != ' ')
+    {
+        if (*request == '\0')
         {
             return NULL;
         }
-        start++;
+        request++;
+        buf_size++;
     }
-    end = ++start;
 
-    // Accept only origin-form
-    if (*end != '/')
+    buf = malloc(buf_size);
+    if (buf == NULL)
+    {
+        return NULL;
+    }
+    memcpy(buf, request - buf_size, buf_size);
+    buf[buf_size] = '\0';
+
+    return buf;
+}
+
+// TODO: Get host from request target and ignore Host header field
+char *parse_request_target_absolute_form(char *request)
+{
+    char *buf;
+    char *host_start, *host_end;
+    char *scheme;
+    size_t scheme_size = 0;
+    size_t buf_size = 0;
+
+    // NOTE: Consider doing all this in one loop (though it may get convoluted)
+
+    // Get scheme and determine start of host information in request target
+    if (strncmp(request, HTTP_SCHEME, sizeof(HTTP_SCHEME) - 1))
+    {
+        scheme = HTTP_SCHEME;
+    }
+    else if (strncmp(request, HTTPS_SCHEME, sizeof(HTTPS_SCHEME) - 1))
+    {
+        scheme = HTTPS_SCHEME;
+    }
+    else
+    {
+        return NULL;
+    }
+    scheme_size = sizeof(scheme) - 1;
+    request += scheme_size;
+    buf_size += scheme_size;
+    host_start = request;
+
+    // Get end of host information
+    while (*request != '/' && *request != ' ')
+    {
+        if (*request == '\0')
+        {
+            return NULL;
+        }
+
+        request++;
+        buf_size++;
+    }
+    host_end = request - 1;
+
+    // Parse rest of URI
+    while (*request != ' ')
+    {
+        if (*request == '\0')
+        {
+            return NULL;
+        }
+
+        request++;
+        buf_size++;
+    }
+
+    buf = malloc(buf_size);
+    if (buf == NULL)
+    {
+        return NULL;
+    }
+    memcpy(buf, request - buf_size, buf_size);
+    buf[buf_size] = '\0';
+
+    return buf;
+}
+
+char *parse_request(char *request)
+{
+    char *buf;
+    methods method = parse_method(request);
+
+    // We don't support CONNECT
+    if (method == -1 || method == CONNECT)
     {
         return NULL;
     }
 
-    // Get the end of file path
-    while (*end != ' ')
+    request++;
+    if (*request != ' ')
     {
-        if (end == NULL)
-        {
-            return NULL;
-        }
-        else if (*end == '.')
-        {
-            has_dot = true;
-        }
-        end++;
+        return NULL;
+    }
+    request++;
+
+    buf = parse_request_target(request);
+    if (buf == NULL)
+    {
+        return NULL;
     }
 
-    // If file path does not have a dot, it must be treated as a directory,
-    // otherwise end the string here
-    if (!has_dot)
-    {
-        if (*(end - 1) != '/')
-        {
-            *end = '/';
-            end++;
-        }
-
-        const size_t file_len = strlen(DEFAULT_FILE) + 1;
-
-        if (strlen(end) < file_len)
-        {
-            return NULL;
-        }
-        memcpy(end, DEFAULT_FILE, file_len);
-    }
-    else
-    {
-        *end = '\0';
-    }
-
-    return start;
+    return buf;
 }
