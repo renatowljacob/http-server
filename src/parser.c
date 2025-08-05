@@ -54,28 +54,28 @@ methods parse_method(char *request)
     return -1;
 }
 
+// NOTE: We should account in the future for cases where the protocol version
+// the recipient supports is determined through configuration
 HTTP_versions parse_protocol(char *request)
 {
-    if (!strncmp("HTTP/1.0", request, HTTP_VERSION_SCHEME_SIZE - 1))
+    HTTP_versions version = HTTP_1_0;
+
+    if (!strncmp("HTTP/1.1", request, HTTP_VERSION_SCHEME_SIZE - 1))
     {
-        return HTTP_1_0;
-    }
-    else if (!strncmp("HTTP/1.1", request, HTTP_VERSION_SCHEME_SIZE - 1))
-    {
-        return HTTP_1_1;
+        version = HTTP_1_1;
     }
     else if (!strncmp("HTTP/2.0", request, HTTP_VERSION_SCHEME_SIZE - 1))
     {
-        return HTTP_2_0;
+        version = HTTP_2_0;
     }
     else if (!strncmp("HTTP/3.0", request, HTTP_VERSION_SCHEME_SIZE - 1))
     {
-        return HTTP_3_0;
+        version = HTTP_3_0;
     }
 
     request += HTTP_VERSION_SCHEME_SIZE - 1;
 
-    return -1;
+    return version;
 }
 
 char *parse_request(char *request)
