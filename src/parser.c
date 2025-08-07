@@ -8,90 +8,47 @@
 #include "parser.h"
 
 // Mirrors methods enum in parser.h
-char *METHODS[] = {
-    "CONNECT",
-    "DELETE",
-    "GET",
-    "HEAD",
-    "OPTIONS",
-    "POST",
-    "PUT",
-    "TRACE"
+HTTP_str_t METHODS[] = {
+    STR_TUPLE("CONNECT"),
+    STR_TUPLE("DELETE"),
+    STR_TUPLE("GET"),
+    STR_TUPLE("HEAD"),
+    STR_TUPLE("OPTIONS"),
+    STR_TUPLE("POST"),
+    STR_TUPLE("PUT"),
+    STR_TUPLE("TRACE"),
+};
+
+HTTP_header_t HEADERS[] = {
+    { STR_TUPLE("Cache-Control"), },
+    { STR_TUPLE("Connection"), },
+    { STR_TUPLE("Content-Length"), },
+    { STR_TUPLE("Content-Type"), },
+    { STR_TUPLE("Date"), },
+    { STR_TUPLE("ETag"), },
+    { STR_TUPLE("Host"), },
+    { STR_TUPLE("Last-Modified"), },
+    { STR_TUPLE("Server"), },
+    { STR_TUPLE("Transfer-Encoding"), },
 };
 
 // TODO: Come up with better error handling (everything returns -1)
-
-methods parse_method(char *request)
-{
-    bool is_equal;
-    char *end, *method;
-
-    for (int32_t i = 0; i < METHODS_NUMBER; i++)
-    {
-        is_equal = true;
-        end = request;
-        method = METHODS[i];
-
-        for (;
-            *method != '\0' && *end != ' ';
-            end++, method++
-        )
-        {
-            if (*end != *method)
-            {
-                is_equal = false;
-                break;
-            }
-        }
-
-        if (is_equal)
-        {
-            request = end;
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-// NOTE: We should account in the future for cases where the protocol version
-// the recipient supports is determined through configuration
-HTTP_versions parse_protocol(char *request)
-{
-    HTTP_versions version = HTTP_1_0;
-
-    if (!strncmp("HTTP/1.1", request, HTTP_VERSION_SCHEME_SIZE - 1))
-    {
-        version = HTTP_1_1;
-    }
-    else if (!strncmp("HTTP/2.0", request, HTTP_VERSION_SCHEME_SIZE - 1))
-    {
-        version = HTTP_2_0;
-    }
-    else if (!strncmp("HTTP/3.0", request, HTTP_VERSION_SCHEME_SIZE - 1))
-    {
-        version = HTTP_3_0;
-    }
-
-    request += HTTP_VERSION_SCHEME_SIZE - 1;
-
-    return version;
-}
 
 char *parse_request(char *request)
 {
     char *request_target_buf;
     size_t request_target_buf_size = 0;
-    HTTP_versions version;
-    methods method = parse_method(request);
+    HTTP_versions_e version;
+    HTTP_methods_e method;
 
     // We don't support CONNECT
+    method = parse_method(request);
     if (method == -1 || method == CONNECT)
     {
         return NULL;
     }
-
     request++;
+
     if (*request != ' ')
     {
         return NULL;
@@ -118,6 +75,50 @@ char *parse_request(char *request)
     request++;
 
     return request_target_buf;
+}
+
+int32_t parse_method(char *request)
+{
+    char *method;
+    int32_t methodlen;
+
+    for (int32_t i = 0; i < METHODS_SIZE; i++)
+    {
+        method = METHODS[i].data;
+        methodlen = METHODS[i].len;
+
+        if (!strncmp(method, request, methodlen))
+        {
+            request += methodlen;
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// NOTE: We should account in the future for cases where the protocol version
+// the recipient supports is determined through configuration
+int32_t parse_protocol(char *request)
+{
+    HTTP_versions_e version = HTTP_1_0;
+
+    if (!strncmp("HTTP/1.1", request, HTTP_VERSION_SCHEME_SIZE - 1))
+    {
+        version = HTTP_1_1;
+    }
+    else if (!strncmp("HTTP/2.0", request, HTTP_VERSION_SCHEME_SIZE - 1))
+    {
+        version = HTTP_2_0;
+    }
+    else if (!strncmp("HTTP/3.0", request, HTTP_VERSION_SCHEME_SIZE - 1))
+    {
+        version = HTTP_3_0;
+    }
+
+    request += HTTP_VERSION_SCHEME_SIZE - 1;
+
+    return version;
 }
 
 int32_t parse_request_target(char *request, char *buf, size_t *buf_size)
@@ -148,13 +149,13 @@ int32_t parse_request_target_absolute_form(char *request, char *buf, size_t *buf
     size_t scheme_size = 0;
 
     // Get scheme and determine the start of host information in request target
-    if (!strncmp(request, HTTP_SCHEME, sizeof(HTTP_SCHEME) - 1))
+    if (!strncmp(request, HTTP_URI_SCHEME, sizeof(HTTP_URI_SCHEME) - 1))
     {
-        scheme = HTTP_SCHEME;
+        scheme = HTTP_URI_SCHEME;
     }
-    else if (!strncmp(request, HTTPS_SCHEME, sizeof(HTTPS_SCHEME) - 1))
+    else if (!strncmp(request, HTTPS_URI_SCHEME, sizeof(HTTPS_URI_SCHEME) - 1))
     {
-        scheme = HTTPS_SCHEME;
+        scheme = HTTPS_URI_SCHEME;
     }
     else
     {
@@ -189,7 +190,6 @@ int32_t parse_request_target_absolute_form(char *request, char *buf, size_t *buf
     return 0;
 }
 
-// TODO: deduplicate this code (pass a buf as a pointer)
 int32_t parse_request_target_origin_form(char *request, char *buf, size_t *buf_size)
 {
     size_t _buf_size = *buf_size;
@@ -202,7 +202,7 @@ int32_t parse_request_target_origin_form(char *request, char *buf, size_t *buf_s
             return -1;
         }
         request++;
-        buf_size++;
+        _buf_size++;
     }
 
     buf = malloc(_buf_size);
