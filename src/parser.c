@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -8,7 +9,7 @@
 #include "parser.h"
 
 // Mirrors methods enum in parser.h
-HTTP_str_t METHODS[] = {
+HTTP_str_t methods[] = {
     STR_TUPLE("CONNECT"),
     STR_TUPLE("DELETE"),
     STR_TUPLE("GET"),
@@ -19,7 +20,7 @@ HTTP_str_t METHODS[] = {
     STR_TUPLE("TRACE"),
 };
 
-HTTP_header_t HEADERS[] = {
+HTTP_header_t headers[] = {
     { STR_TUPLE("Cache-Control"), },
     { STR_TUPLE("Connection"), },
     { STR_TUPLE("Content-Length"), },
@@ -74,7 +75,76 @@ char *parse_request(char *request)
     }
     request++;
 
+    if (*request != '\n' || *request != '\r' && *(request + 1) != '\n')
+    {
+        return NULL;
+    }
+
+    char field_name[50], value[50];
+    while (true)
+    {
+        memset(field_name, 0, sizeof(field_name) / sizeof(char));
+        memset(value, 0, sizeof(value) / sizeof(char));
+
+        if (parse_field_line(request, field_name, value) == -1)
+        {
+            return NULL;
+        }
+
+        for (int32_t i = 0; i < sizeof(headers) / sizeof(HTTP_header_t); i++)
+        {
+            if (!strncmp(headers[i].header.data, field_name, headers[i].header.len))
+            {
+                // Do something
+                // headers[i].function();
+            }
+        }
+    }
+
     return request_target_buf;
+}
+
+int32_t parse_field_line(char *request, char *field_name, char* value)
+{
+    for (
+        int32_t i = 0;
+        *request != '\0' && *request != '\r' && *request != '\n';
+        i++, request++
+    )
+    {
+        if (*request == ' ')
+        {
+            if (*(request + 1) == ':')
+            {
+                return -1;
+            }
+            else if (*(request - 1) == ':')
+            {
+                break;
+            }
+        }
+
+        field_name[i] = *request;
+    }
+
+    for (
+        int32_t i = 0;
+        *request != '\0' && *request != '\r' && *request != '\n';
+        i++, request++
+    )
+    {
+        if (*request == ' '
+            && (*(request + 1) == '\n' || *(request + 1) == '\r'))
+        {
+            continue;
+        }
+
+        value[i] = *request;
+    }
+
+    request += *request == '\r' ? 2 : 1;
+
+    return 0;
 }
 
 int32_t parse_method(char *request)
@@ -84,8 +154,8 @@ int32_t parse_method(char *request)
 
     for (int32_t i = 0; i < METHODS_SIZE; i++)
     {
-        method = METHODS[i].data;
-        methodlen = METHODS[i].len;
+        method = methods[i].data;
+        methodlen = methods[i].len;
 
         if (!strncmp(method, request, methodlen))
         {

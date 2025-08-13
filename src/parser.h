@@ -55,6 +55,8 @@ typedef enum {
  */
 char *parse_request(char *request);
 
+int32_t parse_field_line(char *request, char *field_name, char* value);
+
 /**
  * @brief Get method from request.
  * @param request Pointer to request initial character. If a valid method is
