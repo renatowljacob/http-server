@@ -126,6 +126,7 @@ int32_t parse_field_line(char *request, char *field_name, char* value)
 
         field_name[i] = *request;
     }
+    request++;
 
     for (
         int32_t i = 0;
