@@ -12,6 +12,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "base_arena.h"
+#include "base_core.h"
 #include "http.h"
 #include "main.h"
 
@@ -23,9 +25,14 @@ State state = {
 
 int main(void)
 {
-    int32_t status_code = 0;
+    // Put this into a variable :P
+    void *backing_buf = malloc(10 << 10);
+    Arena arena = {0};
+    arena_init(&arena, backing_buf, 10 << 10);
 
-    int32_t sfd = socket(AF_INET, SOCK_STREAM, 0);
+    i32 status_code = 0;
+
+    i32 sfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sfd == -1)
     {
         perror(__func__);
@@ -33,7 +40,7 @@ int main(void)
         goto cleanup;
     }
 
-    int32_t opt = true;
+    i32 opt = 1;
     setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     struct sockaddr_in saddr = {
@@ -65,7 +72,7 @@ int main(void)
     while (true)
     {
         // Block until a connection is made
-        int32_t request_sfd = accept(
+        i32 request_sfd = accept(
             sfd,
             (struct sockaddr *)&saddr,
             &saddr_size
@@ -103,6 +110,7 @@ int main(void)
 
 cleanup:
     (void) close(sfd);
+    arena_free(&arena);
 
     exit(status_code);
 }

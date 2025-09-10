@@ -1,115 +1,227 @@
-#include <stdbool.h>
-#include <stdint.h>
 #include <string.h>
-#include <unistd.h>
 
+#include "base_core.h"
+#include "base_string.h"
 #include "parser.h"
 
-// Mirrors methods enum in parser.h
-char *METHODS[] = {
-    "CONNECT",
-    "DELETE",
-    "GET",
-    "HEAD",
-    "OPTIONS",
-    "POST",
-    "PUT",
-    "TRACE"
+#define IS_WS(_char) ((_char) == ' ' || (_char) == '\t')
+
+String methods[] = {
+    S("GET"),
+    S("HEAD"),
+    S("POST"),
+    S("CONNECT"),
+    S("DELETE"),
+    S("PUT"),
+    S("OPTIONS"),
 };
 
-methods parse_method(char *request)
+String headers[] = {
+    S("Host"),
+    S("Content-Type"),
+    S("Content-Length"),
+    S("Transfer-Encoding"),
+    S("Connection"),
+    S("Date"),
+    S("Server"),
+    S("Last-Modified"),
+    S("ETag"),
+    S("Cache-Control"),
+};
+
+i32 parse_request(char *request)
 {
-    bool is_equal;
-    char *end, *method;
-
-    for (int32_t i = 0; i < METHODS_NUMBER; i++)
+    if (parse_start_line(request) == -1)
     {
-        is_equal = true;
-        end = request;
-        method = METHODS[i];
+        return -1;
+    }
 
-        for (
-            int32_t j = 0;
-            j < MAX_METHOD_LENGTH && *end != ' ';
-            j++, end++, method++
-        )
+    if (parse_CRLF(request) == -1)
+    {
+        return -1;
+    }
+
+    // NOTE: Any form of whitespace should be detected
+    if (request[0] == ' ')
+    {
+        return -1;
+    }
+
+    // Parse headers
+    for (i32 i = 0, n = SIZEOF_ARRAY(headers); i < n; i++)
+    {
+    }
+
+    if (parse_CRLF(request) == -1)
+    {
+        return -1;
+    }
+
+    // Parse message body if any
+
+    return 0;
+}
+
+i32 parse_start_line(char *request)
+{
+    char *r = request;
+
+    // Parse method
+    for (i32 i = 0, n = SIZEOF_ARRAY(methods); i < n; i++)
+    {
+        if (!strncmp(r, methods[i].elements, methods[i].len))
         {
-            if (*end != *method)
+            // Store header info somewhere
+            r += methods[i].len + 1;
+            break;
+        }
+
+        return -1;
+    }
+
+    // Parse whitespace
+    if (r[0] != ' ')
+    {
+        // Malformed request
+        return -1;
+    }
+    r++;
+
+    // Parse request target
+    switch (*r)
+    {
+        // Absolute-form
+        case 'h':
+        {
+            StaticString http_url = INIT_STATIC_STRING("http://");
+            StaticString https_url = INIT_STATIC_STRING("https://");
+
+            if (!strncmp(r, http_url.elements, http_url.len))
             {
-                is_equal = false;
+                r+= http_url.len;
+            }
+            else if (!strncmp(r, https_url.elements, https_url.len))
+            {
+                r+= https_url.len;
+            }
+            else
+            {
+                return -1;
+            }
+
+            CharSlice host = {
+                .buf = request,
+                .start = ++r,
+            };
+            while (r[1] != ' ' && r[1] != '/')
+            {
+                r++;
+            }
+            host.end = r++;
+
+            // If character is whitespace, do not fallthrough
+            if (r[0] == ' ')
+            {
                 break;
             }
         }
-
-        if (is_equal)
+        // Origin-form
+        case '/':
         {
-            request = end;
-            return (methods) i;
+            CharSlice resource = {
+                .buf = request,
+                .start = r
+            };
+            while (r[1] != ' ')
+            {
+                r++;
+            }
+            resource.end = r;
+
+            break;
         }
+        // Asterisk-form
+        case '*':
+        {
+            CharSlice resource = {
+                .buf = request,
+                .start = r,
+                .end = r
+            };
+
+            break;
+        }
+        // Do not support authority-form
+        default: return -1;
     }
 
-    return -1;
+    // Parse whitespace
+    r++;
+    if (r[0] != ' ' || r[1] == ' ')
+    {
+        return -1;
+    }
+
+    // Parse protocol version
+    StaticString protocol_name = INIT_STATIC_STRING("HTTP/");
+    StaticString protocol_version = INIT_STATIC_STRING("X.X");
+
+    if (strncmp(r, protocol_name.elements, protocol_name.len))
+    {
+        return -1;
+    }
+    r += protocol_name.len;
+
+    if (!strncmp(r, "1.1", protocol_version.len))
+    {
+        // Do something
+    }
+    else if (!strncmp(r, "2.0", protocol_version.len))
+    {
+        // Do something
+    }
+    else if (!strncmp(r, "3.0", protocol_version.len))
+    {
+        // Do something
+    }
+    // Treat client version as 1.0
+    else
+    {
+        // Do something
+    }
+    r += protocol_version.len + 1;
+
+    request = r;
+
+    return 0;
 }
 
-char *parse_request_target(char *request)
+i32 parse_header(char *request)
 {
-    char *start = request;
-    char *end;
-    bool has_dot = false;
 
-    // Get the start of file path
-    while (*start != ' ')
+
+    return 0;
+}
+
+static i32 parse_CRLF(char *request)
+{
+    char *r = request;
+
+    // Parse end of line
+    if (r[0] == '\n')
     {
-        if (!start)
-        {
-            return NULL;
-        }
-        start++;
+        r++;
     }
-    end = ++start;
-
-    // Accept only origin-form
-    if (*end != '/')
+    else if (r[0] == '\r' && r[1] == '\n')
     {
-        return NULL;
-    }
-
-    // Get the end of file path
-    while (*end != ' ')
-    {
-        if (end == NULL)
-        {
-            return NULL;
-        }
-        else if (*end == '.')
-        {
-            has_dot = true;
-        }
-        end++;
-    }
-
-    // If file path does not have a dot, it must be treated as a directory,
-    // otherwise end the string here
-    if (!has_dot)
-    {
-        if (*(end - 1) != '/')
-        {
-            *end = '/';
-            end++;
-        }
-
-        const size_t file_len = strlen(DEFAULT_FILE) + 1;
-
-        if (strlen(end) < file_len)
-        {
-            return NULL;
-        }
-        memcpy(end, DEFAULT_FILE, file_len);
+        r += 2;
     }
     else
     {
-        *end = '\0';
+        return -1;
     }
 
-    return start;
+    request = r;
+
+    return 1;
 }

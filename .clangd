@@ -1,0 +1,5 @@
+CompileFlags:
+  Add: [-Werror, -Wall, -Wextra, -std=c11, -xc, -Wformat-overflow, -Wuse-after-free=1, -Wstrict-prototypes, -Wshadow, -Wconversion, -Wno-override-init ]
+  Compiler: clang
+Diagnostics:
+  Suppress: "pp_operator_used_as_macro_name"

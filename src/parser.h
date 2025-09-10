@@ -1,37 +1,9 @@
-#ifndef PARSER_H
-#define PARSER_H
+#include "base_core.h"
 
-#define DEFAULT_FILE "index.html"
+i32 parse_request(char *request);
 
-#define MAX_METHOD_LENGTH 7
-#define METHODS_NUMBER 8
+i32 parse_start_line(char *request);
 
-// HTTP methods
-typedef enum {
-    CONNECT,
-    DELETE,
-    GET,
-    HEAD,
-    OPTIONS,
-    POST,
-    PUT,
-    TRACE
-} methods;
+i32 parse_headers(char *request);
 
-/**
- * @brief Parse request-target from request message
- * @param request Pointer to request
- * @return Pointer to request-target initial character if valid, NULL otherwise
- *
- * Parse filepath from a request-target only in origin-form
- */
-char *parse_request_target(char *request);
-
-/**
- * @brief Get method from request.
- * @param request Pointer to request initial character. If a valid method is
- * found, it will be mutated to point to the last method character.
- */
-methods parse_method(char *request);
-
-#endif
+static i32 parse_CRLF(char *request);
