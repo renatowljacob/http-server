@@ -1,0 +1,16 @@
+Language: C
+BasedOnStyle: Mozilla
+AlignAfterOpenBracket: BlockIndent
+BreakAfterReturnType: TopLevelDefinitions
+BreakBeforeBraces: Allman
+PointerAlignment: Right
+SortIncludes: true
+ColumnLimit: 80
+IndentWidth: 4
+TabWidth: 8
+UseTab: Never
+AlignConsecutiveMacros:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignFunctionDeclarations: true

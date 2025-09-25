@@ -15,38 +15,58 @@
 
 extern State state;
 
-char *get_status_code_desc(int32_t code)
+char *
+get_status_code_desc(int32_t code)
 {
     switch (code)
     {
-        case 200: return "200 OK";
-        case 400: return "400 Bad Request";
-        case 404: return "404 Not Found";
-        case 413: return "413 Content Too Large";
-        case 500: return "500 Internal Server Error";
-        default: return "501 Not Implemented";
+        case 200:
+            return "200 OK";
+        case 400:
+            return "400 Bad Request";
+        case 404:
+            return "404 Not Found";
+        case 413:
+            return "413 Content Too Large";
+        case 500:
+            return "500 Internal Server Error";
+        default:
+            return "501 Not Implemented";
     }
 }
 
-char *get_content_type(char ext[4])
+char *
+get_content_type(char ext[4])
 {
     switch (*(int32_t *)ext)
     {
-        case CSS: return "text/css";
-        case GIF: return "image/gif";
-        case HTML: return "text/html";
-        case JPEG: return "image/jpeg";
-        case JPG: return "image/jpg";
-        case JS: return "application/javascript";
-        case PNG: return "image/png";
-        case TXT: return "text/plain";
-        case WASM: return "application/wasm";
-        case WEBP: return "image/webp";
-        default: return "application/octet-stream";
+        case CSS:
+            return "text/css";
+        case GIF:
+            return "image/gif";
+        case HTML:
+            return "text/html";
+        case JPEG:
+            return "image/jpeg";
+        case JPG:
+            return "image/jpg";
+        case JS:
+            return "application/javascript";
+        case PNG:
+            return "image/png";
+        case TXT:
+            return "text/plain";
+        case WASM:
+            return "application/wasm";
+        case WEBP:
+            return "image/webp";
+        default:
+            return "application/octet-stream";
     }
 }
 
-int32_t handle_request(int32_t sfd, char *request)
+int32_t
+handle_request(int32_t sfd, char *request)
 {
     int32_t return_code = 0;
 
@@ -100,7 +120,7 @@ int32_t handle_request(int32_t sfd, char *request)
     assert(path_ext != NULL);
     ++path_ext;
 
-    char ext[4] = {0};
+    char ext[4] = { 0 };
     uint64_t extlen = strlen(path_ext);
 
     if (extlen <= 4)
@@ -115,7 +135,8 @@ int32_t handle_request(int32_t sfd, char *request)
     int64_t bytes_to_write = metadata.st_size;
     while (bytes_to_write > 0)
     {
-        int64_t bytes_written = sendfile(sfd, fd, NULL, (size_t)metadata.st_size);
+        int64_t bytes_written =
+          sendfile(sfd, fd, NULL, (size_t)metadata.st_size);
         if (bytes_written == -1)
         {
             perror(__func__);
@@ -135,7 +156,8 @@ cleanup:
     return return_code;
 }
 
-void send_response(int32_t sfd)
+void
+send_response(int32_t sfd)
 {
     char response_buf[MAX_MESSAGE_BYTES];
     int32_t response_buflen = 0;
@@ -143,22 +165,22 @@ void send_response(int32_t sfd)
     if (state.status_code >= 200 && state.status_code <= 299)
     {
         response_buflen = snprintf(
-            response_buf,
-            MAX_MESSAGE_BYTES,
-            "%s %s\r\nContent-Type: %s\r\n\r\n",
-            state.protocol,
-            get_status_code_desc(state.status_code),
-            state.content_type
+          response_buf,
+          MAX_MESSAGE_BYTES,
+          "%s %s\r\nContent-Type: %s\r\n\r\n",
+          state.protocol,
+          get_status_code_desc(state.status_code),
+          state.content_type
         );
     }
     else
     {
         response_buflen = snprintf(
-            response_buf,
-            MAX_MESSAGE_BYTES,
-            "%s %s\r\n\r\n",
-            state.protocol,
-            get_status_code_desc(state.status_code)
+          response_buf,
+          MAX_MESSAGE_BYTES,
+          "%s %s\r\n\r\n",
+          state.protocol,
+          get_status_code_desc(state.status_code)
         );
     }
 

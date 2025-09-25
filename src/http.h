@@ -5,13 +5,14 @@
 
 #include "parser.h"
 
-#define DEFAULT_PORT 8080
+#define DEFAULT_PORT      8080
 #define MAX_MESSAGE_BYTES 65536
 
 // Convert 4-length strings to a 32bit integer
 #define STR_TO_INT(a, b, c, d) ((a) | ((b) << 8) | ((c) << 16) | ((d) << 24))
 
-typedef enum {
+typedef enum
+{
     CSS = STR_TO_INT('c', 's', 's', 0),
     GIF = STR_TO_INT('g', 'i', 'f', 0),
     HTML = STR_TO_INT('h', 't', 'm', 'l'),

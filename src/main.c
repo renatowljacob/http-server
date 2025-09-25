@@ -1,116 +1,225 @@
-#include <asm-generic/socket.h>
-#include <fcntl.h>
+// TODO: Turn main into a arg parse function and transfer its contents to
+// another function
+
+#include <errno.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <sys/bitypes.h>
-#include <sys/sendfile.h>
+#include <string.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 #include "base_arena.h"
 #include "base_core.h"
-#include "http.h"
-#include "main.h"
+#include "base_message.h"
+#include "base_string.h"
 
-State state = {
-    .content_type = NULL,
-    .protocol = "HTTP/1.1",
-    .status_code = 200,
+#define DEFAULT_ERR_LEN 300
+#define DEFAULT_PORT    8080
+#define DEFAULT_S_ADDR  INADDR_ANY
+
+#define MAX_REQUESTS      32
+#define MAX_MESSAGE_BYTES MB(2)
+
+enum ERROR
+{
+    SOCKET_CONN_ERR = 1,
+    SOCKET_BIND_ERR,
+    SOCKET_LISTEN_ERR,
 };
 
-int main(void)
+struct Fildes
 {
-    // Put this into a variable :P
-    void *backing_buf = malloc(10 << 10);
-    Arena arena = {0};
-    arena_init(&arena, backing_buf, 10 << 10);
+    i32 handles[2];
+    i32 index;
+};
 
-    i32 status_code = 0;
+struct ProgramState
+{
+    struct Fildes *fildes;
+    i16 exit_code;
+};
 
-    i32 sfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sfd == -1)
+struct RequestState
+{
+    Arena *arena;
+    u16 status_code;
+};
+
+struct ErrorState
+{
+    Arena *arena;
+    MessageList *msg_list;
+    u32 index;
+};
+
+void fildes_cleanup(struct Fildes *fildes);
+
+int
+main(void)
+{
+    struct ProgramState state_program = { 0 };
+    struct RequestState state_request = { 0 };
+    struct ErrorState state_error = { .index = 1 };
+
+    Arena arena_request = arena_new(.size = MB(2));
+    state_request.arena = &arena_request;
+
+    Arena arena_msgs = arena_new();
+    state_error.arena = &arena_msgs;
+
+    // Dummy Head
+    state_error.msg_list->head =
+      arena_alloc(state_error.arena, sizeof(MessageNode));
+    state_error.msg_list->head->list.next = &state_error.msg_list->head->list;
+    state_error.msg_list->head->message = nil_string;
+    state_error.msg_list->tail = state_error.msg_list->head;
+
+    struct Fildes fildes = { 0 };
+    state_program.fildes = &fildes;
+
+    state_program.fildes->handles[state_program.fildes->index] =
+      socket(AF_INET, SOCK_STREAM, 0);
+
+    // Consider using a handler for getting the file descriptor
+    if (state_program.fildes->handles[state_program.fildes->index])
     {
-        perror(__func__);
-        status_code = 1;
+        MessageNode *msg =
+          message_new(state_error.arena, state_error.index++, errno);
+        fprintf(
+          stderr,
+          "%s\n",
+          message_alloc(
+            DEFAULT_MESSAGE(state_error.arena, msg, msg->status_code)
+          )
+        );
+        state_program.exit_code = (i16)msg->status_code;
+
         goto cleanup;
     }
 
     i32 opt = 1;
-    setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(
+      state_program.fildes->handles[state_program.fildes->index],
+      SOL_SOCKET,
+      SO_REUSEADDR,
+      &opt,
+      sizeof(opt)
+    );
 
     struct sockaddr_in saddr = {
         .sin_family = AF_INET,
         .sin_port = htons(DEFAULT_PORT),
-        .sin_addr = {
-            .s_addr = htonl(DEFAULT_S_ADDR)
-        },
+        .sin_addr = { .s_addr = htonl(DEFAULT_S_ADDR) },
     };
     socklen_t saddr_size = sizeof(saddr);
 
-    // Bind socket to an address
-    if (bind(sfd, (struct sockaddr *)&saddr, saddr_size) == -1)
+    // Bind socket to some address
+    if (bind(
+          state_program.fildes->handles[state_program.fildes->index],
+          (struct sockaddr *)&saddr,
+          saddr_size
+        ) == -1)
     {
-        perror(__func__);
-        status_code = 2;
-        goto cleanup;
-    };
+        MessageNode *msg =
+          message_new(state_error.arena, state_error.index++, errno);
+        fprintf(
+          stderr,
+          "%s\n",
+          message_alloc(
+            DEFAULT_MESSAGE(state_error.arena, msg, msg->status_code)
+          )
+        );
+        state_program.exit_code = (i16)msg->status_code;
 
-    if (listen(sfd, MAX_REQUESTS) == -1)
+        goto cleanup;
+    }
+
+    if (listen(state_program.fildes->handles[state_program.fildes->index], 0) ==
+        -1)
     {
-        perror(__func__);
-        status_code = 3;
+        MessageNode *msg =
+          message_new(state_error.arena, state_error.index++, errno);
+        fprintf(
+          stderr,
+          "%s\n",
+          message_alloc(
+            DEFAULT_MESSAGE(state_error.arena, msg, msg->status_code)
+          )
+        );
+        state_program.exit_code = (i16)msg->status_code;
+
         goto cleanup;
     }
     printf("Listening on port %d.\n", DEFAULT_PORT);
 
-    char request_buf[MAX_MESSAGE_BYTES];
+    state_program.fildes->index++;
     while (true)
     {
-        // Block until a connection is made
-        i32 request_sfd = accept(
-            sfd,
-            (struct sockaddr *)&saddr,
-            &saddr_size
+        arena_reset(state_request.arena);
+
+        state_program.fildes->handles[state_program.fildes->index] = accept(
+          state_program.fildes->handles[0],
+          (struct sockaddr *)&saddr,
+          &saddr_size
         );
-        if (request_sfd == -1)
+        if (state_program.fildes->handles[state_program.fildes->index] == -1)
         {
-            perror(__func__);
-            state.status_code = 500;
-            send_response(request_sfd);
+            MessageNode *msg =
+              message_new(state_error.arena, state_error.index++, errno);
+            fprintf(
+              stderr,
+              "%s\n",
+              message_alloc(
+                DEFAULT_MESSAGE(state_error.arena, msg, msg->status_code)
+              )
+            );
+            slist_append(&msg->list, &state_error.msg_list->tail->list);
+
             continue;
         }
+
+        String request = {
+            .value = arena_alloc(state_request.arena, MAX_MESSAGE_BYTES + 1)
+        };
 
         ssize_t request_size = read(
-            request_sfd,
-            request_buf,
-            MAX_MESSAGE_BYTES
+          state_program.fildes->handles[state_program.fildes->index],
+          (void *)request.value,
+          MAX_MESSAGE_BYTES
         );
-        if (request_size >= MAX_MESSAGE_BYTES)
+        if (request_size < 0)
         {
-            perror(__func__);
-            state.status_code = 413;
-            send_response(request_sfd);
+            MessageNode *msg =
+              message_new(state_error.arena, state_error.index++, errno);
+            fprintf(
+              stderr,
+              "%s\n",
+              message_alloc(
+                DEFAULT_MESSAGE(state_error.arena, msg, msg->status_code)
+              )
+            );
+            slist_append(&msg->list, &state_error.msg_list->tail->list);
+
             continue;
         }
+        request.len = (size_t)request_size;
 
-        request_buf[request_size] = '\0';
+        // Handle request here
 
-        if (handle_request(request_sfd, request_buf) == -1)
-        {
-            fprintf(stderr, "Failed to handle request.\n");
-        }
-
-        close(request_sfd);
+        close(state_program.fildes->handles[state_program.fildes->index]);
     }
 
 cleanup:
-    (void) close(sfd);
-    arena_free(&arena);
+    fildes_cleanup(state_program.fildes);
+    arena_free(state_request.arena);
+    arena_free(state_error.arena);
+}
 
-    exit(status_code);
+void
+fildes_cleanup(struct Fildes *fildes)
+{
+    while (fildes->index >= 0)
+    {
+        close(fildes->handles[fildes->index--]);
+    }
 }
