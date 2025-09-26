@@ -159,14 +159,14 @@ cleanup:
 void
 send_response(int32_t sfd)
 {
-    char response_buf[MAX_MESSAGE_BYTES];
+    char response_buf[MAX_REQUEST_BYTES];
     int32_t response_buflen = 0;
 
     if (state.status_code >= 200 && state.status_code <= 299)
     {
         response_buflen = snprintf(
           response_buf,
-          MAX_MESSAGE_BYTES,
+          MAX_REQUEST_BYTES,
           "%s %s\r\nContent-Type: %s\r\n\r\n",
           state.protocol,
           get_status_code_desc(state.status_code),
@@ -177,7 +177,7 @@ send_response(int32_t sfd)
     {
         response_buflen = snprintf(
           response_buf,
-          MAX_MESSAGE_BYTES,
+          MAX_REQUEST_BYTES,
           "%s %s\r\n\r\n",
           state.protocol,
           get_status_code_desc(state.status_code)

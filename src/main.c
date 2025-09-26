@@ -8,17 +8,14 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "base_arena.h"
-#include "base_core.h"
-#include "base_message.h"
-#include "base_string.h"
+#include "base.h"
+#include "http2.h"
 
 #define DEFAULT_ERR_LEN 300
 #define DEFAULT_PORT    8080
 #define DEFAULT_S_ADDR  INADDR_ANY
 
 #define MAX_REQUESTS      32
-#define MAX_MESSAGE_BYTES MB(2)
 
 enum ERROR
 {
@@ -39,12 +36,6 @@ struct ProgramState
     i16 exit_code;
 };
 
-struct RequestState
-{
-    Arena *arena;
-    u16 status_code;
-};
-
 struct ErrorState
 {
     Arena *arena;
@@ -58,11 +49,11 @@ int
 main(void)
 {
     struct ProgramState state_program = { 0 };
-    struct RequestState state_request = { 0 };
+    struct Request request = { 0 };
     struct ErrorState state_error = { .index = 1 };
 
     Arena arena_request = arena_new(.size = MB(2));
-    state_request.arena = &arena_request;
+    request.arena = &arena_request;
 
     Arena arena_msgs = arena_new();
     state_error.arena = &arena_msgs;
@@ -155,7 +146,7 @@ main(void)
     state_program.fildes->index++;
     while (true)
     {
-        arena_reset(state_request.arena);
+        arena_reset(request.arena);
 
         state_program.fildes->handles[state_program.fildes->index] = accept(
           state_program.fildes->handles[0],
@@ -178,14 +169,14 @@ main(void)
             continue;
         }
 
-        String request = {
-            .value = arena_alloc(state_request.arena, MAX_MESSAGE_BYTES)
+        String message = {
+            .value = arena_alloc(request.arena, MAX_REQUEST_BYTES)
         };
 
         ssize_t request_size = read(
           state_program.fildes->handles[state_program.fildes->index],
-          (void *)request.value,
-          MAX_MESSAGE_BYTES
+          (void *)message.value,
+          MAX_REQUEST_BYTES
         );
         if (request_size < 0)
         {
@@ -202,20 +193,24 @@ main(void)
 
             continue;
         }
-        request.len = (size_t)request_size;
+        message.len = (size_t)request_size;
 
-        // Handle request here
-        // request_state.status_code = handle_request(
-            // program_state.fildes->handles[program_state.fildes->index]
-        // );
-        // send_response(&request_state);
+        request.status_code = handle_request(
+            program_state.fildes->handles[program_state.fildes->index],
+            &message
+        );
+        // NOTE: If I happen to make a cache system in the future, I'll need to
+        // pass an different arena or save the request somewhere, otherwise
+        // it'll get overwritten
+        arena_reset(&request.arena);
+        send_response(state_program.fildes->handles[state_program.fildes->index], &request);
 
         close(state_program.fildes->handles[state_program.fildes->index]);
     }
 
 cleanup:
     fildes_cleanup(state_program.fildes);
-    arena_free(state_request.arena);
+    arena_free(request.arena);
     arena_free(state_error.arena);
 }
 

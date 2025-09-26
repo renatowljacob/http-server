@@ -1,7 +1,6 @@
 #include <string.h>
 
-#include "base_core.h"
-#include "base_string.h"
+#include "base.h"
 #include "parser.h"
 
 #define IS_WS(_char) ((_char) == ' ' || (_char) == '\t')
