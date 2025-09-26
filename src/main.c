@@ -179,7 +179,7 @@ main(void)
         }
 
         String request = {
-            .value = arena_alloc(state_request.arena, MAX_MESSAGE_BYTES + 1)
+            .value = arena_alloc(state_request.arena, MAX_MESSAGE_BYTES)
         };
 
         ssize_t request_size = read(
@@ -205,6 +205,10 @@ main(void)
         request.len = (size_t)request_size;
 
         // Handle request here
+        // request_state.status_code = handle_request(
+            // program_state.fildes->handles[program_state.fildes->index]
+        // );
+        // send_response(&request_state);
 
         close(state_program.fildes->handles[state_program.fildes->index]);
     }

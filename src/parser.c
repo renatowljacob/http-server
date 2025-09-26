@@ -7,27 +7,29 @@
 #define IS_WS(_char) ((_char) == ' ' || (_char) == '\t')
 
 String methods[] = {
-    S("GET"),
-    S("HEAD"),
-    S("POST"),
-    S("CONNECT"),
-    S("DELETE"),
-    S("PUT"),
-    S("OPTIONS"),
+    SEXPR("GET"),
+    SEXPR("HEAD"),
+    SEXPR("POST"),
+    SEXPR("CONNECT"),
+    SEXPR("DELETE"),
+    SEXPR("PUT"),
+    SEXPR("OPTIONS"),
 };
 
 String headers[] = {
-    S("Host"),
-    S("Content-Type"),
-    S("Content-Length"),
-    S("Transfer-Encoding"),
-    S("Connection"),
-    S("Date"),
-    S("Server"),
-    S("Last-Modified"),
-    S("ETag"),
-    S("Cache-Control"),
+    SEXPR("Host"),
+    SEXPR("Content-Type"),
+    SEXPR("Content-Length"),
+    SEXPR("Transfer-Encoding"),
+    SEXPR("Connection"),
+    SEXPR("Date"),
+    SEXPR("Server"),
+    SEXPR("Last-Modified"),
+    SEXPR("ETag"),
+    SEXPR("Cache-Control"),
 };
+
+// TODO: Make these procedures return actually useful values
 
 i32 parse_request(char *request)
 {
@@ -93,14 +95,14 @@ i32 parse_start_line(char *request)
         // Absolute-form
         case 'h':
         {
-            StaticString http_url = INIT_STATIC_STRING("http://");
-            StaticString https_url = INIT_STATIC_STRING("https://");
+            String http_url = SEXPR("http://");
+            String https_url = SEXPR("https://");
 
-            if (!strncmp(r, http_url.elements, http_url.len))
+            if (!strncmp(r, http_url.value, http_url.len))
             {
                 r+= http_url.len;
             }
-            else if (!strncmp(r, https_url.elements, https_url.len))
+            else if (!strncmp(r, https_url.value, https_url.len))
             {
                 r+= https_url.len;
             }
@@ -109,15 +111,14 @@ i32 parse_start_line(char *request)
                 return -1;
             }
 
-            CharSlice host = {
-                .buf = request,
-                .start = ++r,
+            StringSlice host = {
+                .value = r
             };
-            while (r[1] != ' ' && r[1] != '/')
+            while (r[0] != ' ' && r[0] != '/')
             {
-                r++;
+                r = r[1];
+                host.len++;
             }
-            host.end = r++;
 
             // If character is whitespace, do not fallthrough
             if (r[0] == ' ')
@@ -128,49 +129,47 @@ i32 parse_start_line(char *request)
         // Origin-form
         case '/':
         {
-            CharSlice resource = {
-                .buf = request,
-                .start = r
+            StringSlice resource = {
+                .value = r,
             };
-            while (r[1] != ' ')
+            while (r[0] != ' ')
             {
-                r++;
+                r = r[1];
+                resource.len++;
             }
-            resource.end = r;
 
             break;
         }
         // Asterisk-form
         case '*':
         {
-            CharSlice resource = {
-                .buf = request,
-                .start = r,
-                .end = r
+            StringSlice resource = {
+                .value = r,
+                .len = 1
             };
 
             break;
         }
-        // Do not support authority-form
+        // We don't support authority-form
         default: return -1;
     }
 
     // Parse whitespace
-    r++;
+    r = r[1];
     if (r[0] != ' ' || r[1] == ' ')
     {
         return -1;
     }
 
     // Parse protocol version
-    StaticString protocol_name = INIT_STATIC_STRING("HTTP/");
-    StaticString protocol_version = INIT_STATIC_STRING("X.X");
+    String protocol_name = SEXPR("HTTP/");
+    String protocol_version = SEXPR("X.X");
 
-    if (strncmp(r, protocol_name.elements, protocol_name.len))
+    if (strncmp(r, protocol_name.value, protocol_name.len))
     {
         return -1;
     }
-    r += protocol_name.len;
+    r = r[protocol_name.len];
 
     if (!strncmp(r, "1.1", protocol_version.len))
     {
@@ -189,8 +188,7 @@ i32 parse_start_line(char *request)
     {
         // Do something
     }
-    r += protocol_version.len + 1;
-
+    r = r[protocol_version.len + 1];
     request = r;
 
     return 0;
@@ -210,11 +208,11 @@ static i32 parse_CRLF(char *request)
     // Parse end of line
     if (r[0] == '\n')
     {
-        r++;
+        r = r[1];
     }
     else if (r[0] == '\r' && r[1] == '\n')
     {
-        r += 2;
+        r = r[2];
     }
     else
     {

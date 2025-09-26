@@ -59,7 +59,7 @@ typedef String StringSlice;
 // compatible with cstrings, so I'll probably write my own set of
 // procedures later
 // clang-format off
-#define SEXPR(cstr) { sizeof(cstr), (cstr) }
+#define SEXPR(cstr) (String){ sizeof(cstr), (cstr) }
 #define SSTAT(s, cstr)                                                         \
     do                                                                         \
     {                                                                          \
