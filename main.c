@@ -534,43 +534,6 @@ main(void)
 
             exchange.file.os_path =
                 rwlj_cstring_from_string(filepath, &connection_arena);
-
-            // Skip directory slashes
-            // isize i = 0;
-            // for (isize j = 0; j < exchange.file.path.len; j += 1) {
-            //     if (exchange.file.path.data[j] == '/') {
-            //         i = j;
-            //     }
-            // }
-            // exchange.file.stem = rwlj_string(
-            //     exchange.file.path.data, i + 1, exchange.file.path.len
-            // );
-
-            // Skip hidden file dot
-            // i = 0;
-            // if (exchange.uri.path.data[0] == '.') {
-            //     i += 1;
-            // }
-
-            // isize dot_pos = 0;
-            // i = 0;
-            // for (; i < exchange.file.stem.len; i += 1) {
-            //     if (exchange.file.stem.data[i] == '.') {
-            //         dot_pos = i;
-            //     }
-            // }
-            //
-            // if (dot_pos) {
-            //     exchange.file.extension = rwlj_string(
-            //         exchange.file.stem.data, dot_pos + 1,
-            //         exchange.file.stem.len
-            //     );
-            // } else {
-            //     dot_pos = exchange.file.stem.len;
-            // }
-            //
-            // exchange.file.stem =
-            //     rwlj_string(exchange.file.stem.data, 0, dot_pos);
         }
 
         if (message.data[0] != ' ') {
@@ -663,7 +626,7 @@ main(void)
             continue;
         }
 
-        // isize len = fields.len;
+        // TODO: Handle headers
 #if false
         isize len = fields.len;
         while (len--) {
@@ -700,7 +663,7 @@ main(void)
         }
 #endif
 
-        // TODO: PARSE CONTENT
+        // TODO: Handle content
         {
         }
 
