@@ -148,6 +148,40 @@ typedef struct File_Data {
     rwljString extension;
 } File_Data;
 
+typedef struct Header_KV {
+    rwljString key;
+    rwljString value;
+} Header_KV;
+GENERIC_ARRAY(Header_KV, Header_KV);
+
+enum Newline {
+    NEWLINE_INVALID = -1,
+    NEWLINE_NIL,
+    NEWLINE_VALID,
+};
+typedef isize Newline;
+
+typedef struct Exchange_Data {
+    // Request
+    Method method;
+    isize port;
+    rwljString target;
+    URI uri;
+
+    // Response
+    Content_Type content_type;
+    isize status_code;
+    rwljString response;
+    rwljString status_message;
+    File_Data file;
+
+    // Exchange
+    Protocol protocol;
+
+    // Context - stuff to pass around
+    rwljString_Builder string_builder;
+} Exchange_Data;
+
 // clang-format off
 #define X(callback)                                                            \
     callback(200, OK),                                                         \
@@ -171,44 +205,10 @@ typedef isize Status_Code;
 #undef MAKE_ENUM
 #undef ENUM_TABLE
 
-typedef struct Exchange_Data {
-    // Request
-    Method method;
-    isize port;
-    // rwljString message;
-    rwljString target;
-    URI uri;
-
-    // Response
-    Content_Type content_type;
-    isize status_code;
-    rwljString response;
-    rwljString status_message;
-    File_Data file;
-
-    // Exchange
-    Protocol protocol;
-
-    // Context - stuff to pass around
-    rwljString_Builder string_builder;
-} Exchange_Data;
-
-typedef struct Header_KV {
-    rwljString key;
-    rwljString value;
-} Header_KV;
-GENERIC_ARRAY(Header_KV, Header_KV);
-
-enum Newline {
-    NEWLINE_INVALID = -1,
-    NEWLINE_NIL,
-    NEWLINE_VALID,
-};
-typedef isize Newline;
-
-// Exit codes
+// Exit status
 enum Server_Error {
-    SERVER_ERROR_CREATE_SERVER_SOCKET = 1,
+    SERVER_ERROR_NONE,
+    SERVER_ERROR_CREATE_SERVER_SOCKET,
     SERVER_ERROR_CONFIGURE_SERVER_SOCKET,
     SERVER_ERROR_BIND_SERVER_SOCKET,
     SERVER_ERROR_LISTEN_SERVER_SOCKET,
@@ -234,7 +234,7 @@ main(void)
         i32 err = errno;
         rwlj_debug_printf("Failed to create server socket: %s", strerror(err));
 
-        exit(SERVER_ERROR_CREATE_SERVER_SOCKET);
+        return SERVER_ERROR_CREATE_SERVER_SOCKET;
     }
     rwlj_debug_print(STRING("Opened socket"));
 
@@ -251,7 +251,7 @@ main(void)
             "Failed to configure server socket: %s", strerror(err)
         );
 
-        exit(SERVER_ERROR_CONFIGURE_SERVER_SOCKET);
+        return SERVER_ERROR_CONFIGURE_SERVER_SOCKET;
     }
     rwlj_debug_print(STRING("Set socket"));
 
@@ -267,7 +267,7 @@ main(void)
             "Failed to bind server socket to address: %s", strerror(err)
         );
 
-        exit(SERVER_ERROR_BIND_SERVER_SOCKET);
+        return SERVER_ERROR_BIND_SERVER_SOCKET;
     }
     rwlj_debug_print(STRING("Bound socket"));
 
@@ -277,7 +277,7 @@ main(void)
             "Failed to set server socket up for listening: %s", strerror(err)
         );
 
-        exit(SERVER_ERROR_LISTEN_SERVER_SOCKET);
+        return SERVER_ERROR_LISTEN_SERVER_SOCKET;
     }
     rwlj_debug_print(STRING("Listened to socket"));
     rwlj_eprintfln("Listening on port %d.", DEFAULT_PORT);
@@ -322,7 +322,7 @@ main(void)
             connection_fd, cast(void *) message_buf.data, MAX_REQUEST_SIZE
         );
         if (message_size == -1) {
-            // TODO: Also send diagnostics to log file
+            // TODO: Send diagnostics to log file as well
             i32 err = errno;
             rwlj_debug_printf(
                 "Failed to read connection socket: %s", strerror(err)
@@ -343,7 +343,6 @@ main(void)
         exchange.file.extension = STRING("html");
         exchange.content_type = CONTENT_TYPE_HTML;
         exchange.method = METHOD_NIL;
-        exchange.protocol = PROTOCOL_HTTP1;
         rwlj_string_builder_init(
             &exchange.string_builder, MAX_RESPONSE_SIZE, &connection_arena
         );
@@ -379,8 +378,6 @@ main(void)
 
         // TODO: Reconstruct target URI from Host
 
-        // TODO: This might be a naive form of parsing. The target might be
-        // invalid
         // Parse request-target
         {
             isize len = 0;
@@ -411,10 +408,6 @@ main(void)
                 rwljString http_scheme = STRING(HTTP_SCHEME);
                 rwljString https_scheme = STRING(HTTPS_SCHEME);
 
-                // TODO: Track protocol version throughout connection (and guess
-                // through heuristics)
-
-                // TODO: If Host is also absent, assume it's a HTTP/1.0 request
                 if ((is_http = rwlj_string_are_equal(
                          rwlj_string(message.data, 0, http_scheme.len),
                          http_scheme
@@ -493,7 +486,7 @@ main(void)
             exchange.uri.fragment.data =
                 exchange.uri.fragment.len > 0 ? (&message.data[start]) : NULL;
 
-            // TODO: Respond with "414 URI Too Long"?
+            // TODO: Set request-line limit and respond with "414 URI Too Long"?
 
             exchange.target = rwlj_string(message.data, 0, len);
             advance_message(&message, len);
@@ -581,8 +574,9 @@ main(void)
             continue;
         }
 
-        // Parse headers
         // TODO: Handle line folding (RCF 9112 - 5.2)
+
+        // Parse headers
         rwljArray_Header_KV headers = { 0 };
         rwlj_array_init_dynamic(&headers, &connection_arena);
 
@@ -697,7 +691,7 @@ main(void)
             // Get content type (octet-stream by default)
             for (isize i = 0; i < rwlj_count_of(content_types); i += 1) {
                 Content_Type_KV content_type = content_types[i];
-                if (!rwlj_string_compare_insensitive(
+                if (rwlj_string_are_equal_insensitive(
                         exchange.file.extension, content_type.key
                     )) {
                     exchange.content_type = i;
@@ -766,11 +760,11 @@ main(void)
         i32 err = errno;
         rwlj_debug_printf("Failed to close server socket: %s", strerror(err));
 
-        exit(SERVER_ERROR_CLOSE_SERVER_SOCKET);
+        return SERVER_ERROR_CLOSE_SERVER_SOCKET;
     }
     rwlj_debug_print(STRING("Closed socket"));
 
-    return 0;
+    return SERVER_ERROR_NONE;
 }
 
 // Returns 2 for CRLF, 1 for LF, and 0 for no newline
