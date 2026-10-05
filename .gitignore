@@ -31,9 +31,15 @@
 # Debug files
 *.dSYM/
 
+# Project files
+main.rdi
+project.raddbg
+
 # Project binary files
 /bin/*
 !/bin/.gitkeep
+/build/*
+!/build/.gitkeep
 
 # Project object files
 /lib/*
