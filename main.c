@@ -329,7 +329,7 @@ main(void)
             );
             continue;
         }
-        rwljString message = rwlj_string(message_buf.data, 0, message_size);
+        rwljString message = rwlj_string(message_buf, 0, message_size);
 
         // Ignore empty lines preceding request-line
         while (skip_newline(&message)) {
@@ -353,7 +353,7 @@ main(void)
         for (isize i = 0; i < METHOD_COUNT; i += 1) {
             rwljString method = methods[i];
             if (rwlj_string_are_equal(
-                    method, rwlj_string(message.data, 0, method.len)
+                    method, rwlj_string(message, 0, method.len)
                 )) {
                 advance_message(&message, method.len);
                 exchange.method = i;
@@ -392,7 +392,7 @@ main(void)
 
                 exchange.uri.kind = URI_KIND_ASTERISK_FORM;
                 len += 1;
-                exchange.uri.path = rwlj_string(message.data, 0, len);
+                exchange.uri.path = rwlj_string(message, 0, len);
 
                 goto target_parsing_end;
             }
@@ -409,12 +409,10 @@ main(void)
                 rwljString https_scheme = STRING(HTTPS_SCHEME);
 
                 if ((is_http = rwlj_string_are_equal(
-                         rwlj_string(message.data, 0, http_scheme.len),
-                         http_scheme
+                         rwlj_string(message, 0, http_scheme.len), http_scheme
                      )) ||
                     (is_https = rwlj_string_are_equal(
-                         rwlj_string(message.data, 0, https_scheme.len),
-                         https_scheme
+                         rwlj_string(message, 0, https_scheme.len), https_scheme
                      ))) {
                     exchange.uri.kind = URI_KIND_ABSOLUTE_FORM;
                     exchange.uri.scheme = is_http ? http_scheme : https_scheme;
@@ -488,7 +486,7 @@ main(void)
 
             // TODO: Set request-line limit and respond with "414 URI Too Long"?
 
-            exchange.target = rwlj_string(message.data, 0, len);
+            exchange.target = rwlj_string(message, 0, len);
             advance_message(&message, len);
 
         target_parsing_end:
@@ -504,7 +502,7 @@ main(void)
 
             // Skip leading directory slash
             rwljString filepath =
-                rwlj_string(exchange.uri.path.data, 1, exchange.uri.path.len);
+                rwlj_string(exchange.uri.path, 1, exchange.uri.path.len);
             rwljSlice_String split =
                 rwlj_string_split(filepath, STRING("/"), temp_arena.arena);
 
@@ -518,9 +516,7 @@ main(void)
 
             // Stem
             exchange.file.stem = rwlj_string(
-                basename.data,
-                0,
-                basename.len - (exchange.file.extension.len + 1)
+                basename, 0, basename.len - (exchange.file.extension.len + 1)
             );
 
             rwlj_arena_temp_free_all(&temp_arena);
@@ -541,7 +537,7 @@ main(void)
         for (isize i = 0; i < PROTOCOL_COUNT; i += 1) {
             rwljString protocol = protocols[i];
             if (rwlj_string_are_equal(
-                    protocol, rwlj_string(message.data, 0, protocol.len)
+                    protocol, rwlj_string(message, 0, protocol.len)
                 )) {
                 advance_message(&message, protocol.len);
                 exchange.protocol = i;
@@ -582,7 +578,7 @@ main(void)
 
         newlines = 0;
         do {
-            rwljString key = rwlj_string(message.data, 0, 0);
+            rwljString key = rwlj_string(message, 0, 0);
             while (message.data[key.len] != ':' && key.len < message.len) {
                 if (rwlj_is_space(message.data[key.len])) {
                     exchange.status_code = STATUS_CODE_BAD_REQUEST;
@@ -598,10 +594,8 @@ main(void)
                 advance_message(&message, 1);
             }
 
-            rwljString value = rwlj_string(message.data, 0, 0);
-            while (!is_newline(
-                       rwlj_string(message.data, value.len, message.len)
-                   ) &&
+            rwljString value = rwlj_string(message, 0, 0);
+            while (!is_newline(rwlj_string(message, value.len, message.len)) &&
                    value.len < message.len) {
                 value.len += 1;
             }
